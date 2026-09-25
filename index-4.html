@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0F2A2E" />
+<title>Saginn — Collecte FINACEP</title>
+<link rel="manifest" href="./manifest.json" />
+<link rel="icon" href="./icon-192.png" />
+<link rel="apple-touch-icon" href="./icon-192.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #0F2A2E; font-family: -apple-system, 'Inter', system-ui, sans-serif; color: #F5F3EC; }
+  #app { max-width: 480px; margin: 0 auto; padding: 20px 16px 100px; }
+  .hidden { display: none !important; }
+  input, button { font-family: inherit; }
+  input:focus, button:focus { outline: 2px solid #4FB89E; outline-offset: 1px; }
+
+  /* ---- Auth screen ---- */
+  #auth-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .auth-box { width: 100%; max-width: 360px; }
+  .auth-logo { width: 52px; height: 52px; border-radius: 14px; background: #153B3A; border: 1px solid #234F4B; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px; font-size: 24px; }
+  .role-btn { width: 100%; border-radius: 12px; padding: 16px; font-size: 15px; font-weight: 700; cursor: pointer; margin-bottom: 10px; border: none; }
+  .role-btn.primary { background: #4FB89E; color: #0F2A2E; }
+  .role-btn.secondary { background: #153B3A; color: #F5F3EC; border: 1px solid #234F4B; }
+  .pw-card { background: #153B3A; border-radius: 16px; padding: 18px; border: 1px solid #234F4B; }
+  .pw-input { width: 100%; background: #0F2A2E; border: 1px solid #234F4B; border-radius: 10px; color: #F5F3EC; padding: 12px 14px; font-size: 15px; margin-bottom: 10px; }
+  .pw-submit { width: 100%; background: #4FB89E; color: #0F2A2E; border: none; border-radius: 10px; padding: 13px; font-size: 14px; font-weight: 700; cursor: pointer; margin-bottom: 8px; }
+  .pw-back { width: 100%; background: none; color: #8FB5B0; border: none; padding: 6px; font-size: 13px; cursor: pointer; }
+  .auth-error { color: #E8967A; font-size: 12px; margin-bottom: 10px; }
+  .auth-note { color: #5C8783; font-size: 11px; text-align: center; margin-top: 18px; line-height: 1.5; }
+
+  /* ---- Tabs / header ---- */
+  .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .brand { font-size: 15px; font-weight: 800; font-style: italic; }
+  .lock-link { background: none; border: none; color: #5C8783; cursor: pointer; font-size: 12px; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+  .tab-btn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid #234F4B; border-radius: 10px; padding: 10px; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .tab-btn.active { background: #4FB89E; color: #0F2A2E; }
+  .tab-btn.inactive { background: #153B3A; color: #8FB5B0; }
+
+  /* ---- Cards ---- */
+  .card { background: #153B3A; border-radius: 16px; padding: 18px 20px; margin-bottom: 20px; border: 1px solid #234F4B; }
+  .card-label { color: #7FCDBB; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+  .card-total { font-size: 34px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .card-sub { color: #8FB5B0; font-size: 13px; margin-top: 2px; }
+
+  .form-card { background: #153B3A; border-radius: 16px; padding: 16px; margin-bottom: 20px; border: 1px solid #234F4B; }
+  .form-label { color: #7FCDBB; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; }
+  .field { display: flex; align-items: center; gap: 10px; background: #0F2A2E; border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; }
+  .field span.icn { font-size: 15px; }
+  .field input { flex: 1; background: transparent; border: none; color: #F5F3EC; font-size: 15px; }
+  .add-btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; background: #4FB89E; color: #0F2A2E; border: none; border-radius: 10px; padding: 12px; font-size: 15px; font-weight: 700; cursor: pointer; }
+
+  .legend { display: flex; gap: 12px; font-size: 11px; color: #8FB5B0; }
+  .dot { width: 8px; height: 8px; border-radius: 999px; display: inline-block; margin-right: 4px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .table-wrap { background: #153B3A; border-radius: 12px; border: 1px solid #234F4B; overflow: hidden; margin-bottom: 20px; }
+  thead tr { background: #1D4A47; }
+  th { text-align: left; color: #7FCDBB; font-size: 11px; font-weight: 700; text-transform: uppercase; padding: 10px; }
+  th.right { text-align: right; }
+  td { padding: 10px; border-top: 1px solid #1E4643; white-space: nowrap; }
+  td.nom { font-weight: 600; max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
+  td.montant { color: #4FB89E; font-weight: 800; text-align: right; font-variant-numeric: tabular-nums; }
+  .del-btn { background: none; border: none; cursor: pointer; color: #8A6A6A; font-size: 15px; }
+
+  .empty { text-align: center; color: #5C8783; font-size: 13px; padding: 24px 0; }
+  .warn { background: #3A2E1A; color: #E8C27A; font-size: 12px; padding: 8px 12px; border-radius: 8px; margin-bottom: 14px; line-height: 1.4; }
+
+  .sticky-bottom { position: fixed; bottom: 0; left: 0; right: 0; background: #0F2A2E; border-top: 1px solid #234F4B; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); }
+  .sticky-inner { max-width: 480px; margin: 0 auto; display: flex; gap: 10px; }
+  .btn-copy { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; background: #153B3A; color: #F5F3EC; border: 1px solid #234F4B; border-radius: 10px; padding: 13px; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .btn-send { flex: 1.4; display: flex; align-items: center; justify-content: center; gap: 8px; background: #4FB89E; color: #0F2A2E; border: none; border-radius: 10px; padding: 13px; font-size: 14px; font-weight: 700; cursor: pointer; }
+
+  /* ---- History ---- */
+  .hist-title { font-size: 24px; font-weight: 800; margin: 0 0 4px; }
+  .hist-sub { color: #8FB5B0; font-size: 13px; margin: 0 0 18px; }
+  .preset-row { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+  .preset-btn { background: #153B3A; color: #C9E4E0; border: 1px solid #234F4B; border-radius: 999px; padding: 8px 14px; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .range-card { background: #153B3A; border-radius: 14px; padding: 14px; margin-bottom: 16px; border: 1px solid #234F4B; }
+  .range-row { display: flex; gap: 10px; margin-bottom: 10px; }
+  .range-col { flex: 1; }
+  .range-col label { color: #8FB5B0; font-size: 11px; margin-bottom: 4px; display: block; }
+  .range-col input { width: 100%; background: #0F2A2E; border: 1px solid #234F4B; border-radius: 8px; color: #F5F3EC; padding: 8px 10px; font-size: 13px; }
+  .range-submit { width: 100%; background: #4FB89E; color: #0F2A2E; border: none; border-radius: 8px; padding: 10px; font-size: 14px; font-weight: 700; cursor: pointer; }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { background: #153B3A; color: #C9E4E0; border: 1px solid #234F4B; border-radius: 999px; padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .chip.active { background: #4FB89E; color: #0F2A2E; }
+  .day-block { margin-bottom: 16px; }
+  .day-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .day-head .name { font-size: 14px; font-weight: 700; }
+  .day-head .amt { color: #4FB89E; font-size: 13px; font-weight: 700; }
+  .print-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; background: #4FB89E; color: #0F2A2E; border: none; border-radius: 10px; padding: 13px; font-size: 14px; font-weight: 700; cursor: pointer; margin-top: 6px; }
+
+  #print-area { display: none; }
+  @media print {
+    body * { visibility: hidden; }
+    #print-area, #print-area * { visibility: visible; }
+    #print-area { display: block !important; position: absolute; top: 0; left: 0; width: 100%; padding: 24px; background: #fff; color: #111; }
+  }
+
+  .offline-banner { position: fixed; top: 0; left: 0; right: 0; background: #E8C27A; color: #3A2E1A; text-align: center; font-size: 12px; font-weight: 700; padding: 6px; z-index: 50; }
+
+  /* ---- Autocomplétion ---- */
+  .autocomplete-wrap { position: relative; flex: 1; }
+  .autocomplete-list { position: absolute; top: 100%; left: -38px; right: 0; background: #1D4A47; border: 1px solid #4FB89E; border-radius: 10px; z-index: 100; max-height: 200px; overflow-y: auto; margin-top: 4px; box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
+  .autocomplete-item { padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #234F4B; }
+  .autocomplete-item:last-child { border-bottom: none; }
+  .autocomplete-item:hover, .autocomplete-item.active { background: #234F4B; }
+  .autocomplete-item .ac-nom { font-size: 14px; font-weight: 700; color: #F5F3EC; }
+  .autocomplete-item .ac-compte { font-size: 11px; color: #7FCDBB; margin-top: 1px; }
+
+  /* ---- Gestion clients ---- */
+  .client-item { display: flex; align-items: center; justify-content: space-between; background: #0F2A2E; border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+  .client-item-info .ci-nom { font-size: 14px; font-weight: 700; }
+  .client-item-info .ci-compte { font-size: 11px; color: #7FCDBB; margin-top: 2px; }
+  .client-del-btn { background: none; border: none; cursor: pointer; color: #8A6A6A; font-size: 16px; padding: 4px; }
+</style>
+</head>
+<body>
+
+<div id="offline-banner" class="offline-banner hidden">Hors ligne — tes données restent enregistrées sur ce téléphone</div>
+
+<!-- AUTH SCREEN -->
+<div id="auth-screen">
+  <div class="auth-box">
+    <div style="text-align:center; margin-bottom:24px;">
+      <div class="auth-logo">🔒</div>
+      <div style="font-size:22px; font-weight:800; font-style:italic;">Saginn</div>
+      <div style="color:#8FB5B0; font-size:13px; margin-top:4px;">Accès protégé par mot de passe</div>
+    </div>
+
+    <div id="auth-choose">
+      <button class="role-btn primary" id="btn-role-agent">Je suis l'agent de crédit</button>
+      <button class="role-btn secondary" id="btn-role-caissiere">Je suis la caissière</button>
+    </div>
+
+    <div id="auth-pw" class="pw-card hidden">
+      <div class="form-label" id="auth-pw-title">Espace</div>
+      <input type="password" id="pw-input" class="pw-input" placeholder="Mot de passe" />
+      <input type="password" id="pw-input2" class="pw-input hidden" placeholder="Confirmer le mot de passe" />
+      <div id="auth-error" class="auth-error hidden"></div>
+      <button class="pw-submit" id="pw-submit-btn">Déverrouiller</button>
+      <button class="pw-back" id="pw-back-btn">← Retour</button>
+    </div>
+
+    <div class="auth-note">Ce mot de passe protège l'accès à l'appli sur cet appareil. Il n'offre pas un niveau de sécurité bancaire.</div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app" class="hidden">
+  <div class="topbar">
+    <div class="brand">Saginn</div>
+    <button class="lock-link" id="btn-logout">🔒 Verrouiller</button>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" id="tab-jour-btn">📅 Aujourd'hui</button>
+    <button class="tab-btn inactive" id="tab-hist-btn">🕘 Historique</button>
+    <button class="tab-btn inactive" id="tab-clients-btn">👥 Clients</button>
+  </div>
+
+  <!-- TAB: JOUR -->
+  <div id="tab-jour">
+    <div style="margin-bottom:20px;">
+      <div style="display:flex; align-items:center; gap:8px; color:#7FCDBB; font-size:13px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase;">
+        <span>📅</span><span id="today-label"></span>
+      </div>
+      <h1 style="font-size:26px; font-weight:800; margin:6px 0 2px;">Collecte du jour</h1>
+      <input id="agent-name-input" placeholder="Ton nom (agent de crédit)"
+        style="width:100%; background:transparent; border:none; border-bottom:1px solid #2E5A57; color:#F5F3EC; font-size:19px; font-weight:800; font-style:italic; padding:8px 0; outline:none; margin-top:6px;" />
+      <div style="display:flex; align-items:center; gap:6px; margin-top:8px; font-size:11px; color:#5C8783;">
+        <span class="dot" style="background:#4FB89E;"></span>
+        Enregistré sur ce téléphone
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Total collecté</div>
+      <div class="card-total" id="today-total">0 XAF</div>
+      <div class="card-sub" id="today-count">0 client</div>
+    </div>
+
+    <div class="form-card">
+      <div class="form-label">Nouveau client</div>
+      <div class="field">
+        <span class="icn">👤</span>
+        <div class="autocomplete-wrap">
+          <input id="input-nom" placeholder="Nom du client" autocomplete="off" style="width:100%; background:transparent; border:none; color:#F5F3EC; font-size:15px;" />
+          <div id="autocomplete-list" class="autocomplete-list" style="display:none;"></div>
+        </div>
+      </div>
+      <div class="field"><span class="icn">💳</span><input id="input-compte" placeholder="Numéro de compte" /></div>
+      <div class="field"><span class="icn">💵</span><input id="input-montant" placeholder="Montant (XAF)" inputmode="numeric" /></div>
+      <button class="add-btn" id="btn-add">+ Ajouter à la fiche</button>
+    </div>
+
+    <div id="today-table-section"></div>
+  </div>
+
+  <!-- TAB: CLIENTS -->
+  <div id="tab-clients" class="hidden">
+    <div class="hist-title">Mes clients</div>
+    <div class="hist-sub">Enregistre tes clients pour une saisie rapide sur le terrain.</div>
+
+    <div class="form-card">
+      <div class="form-label">Ajouter un client</div>
+      <div class="field"><span class="icn">👤</span><input id="new-client-nom" placeholder="Nom complet du client" /></div>
+      <div class="field"><span class="icn">💳</span><input id="new-client-compte" placeholder="Numéro de compte" /></div>
+      <button class="add-btn" id="btn-add-client">+ Enregistrer ce client</button>
+    </div>
+
+    <div class="form-label" style="margin-bottom:10px;">Liste des clients enregistrés</div>
+    <div id="clients-list"></div>
+  </div>
+
+  <!-- TAB: HISTORIQUE -->
+  <div id="tab-hist" class="hidden">
+    <div class="hist-title">Historique</div>
+    <div class="hist-sub">Retrouve et exporte tes fiches de jours passés.</div>
+
+    <div class="preset-row">
+      <button class="preset-btn" id="preset-7j">7 derniers jours</button>
+      <button class="preset-btn" id="preset-30j">30 derniers jours</button>
+      <button class="preset-btn" id="preset-mois">Ce mois</button>
+    </div>
+
+    <div class="range-card">
+      <div class="form-label" style="margin-bottom:10px;">Choisir une période précise</div>
+      <div class="range-row">
+        <div class="range-col"><label>Du</label><input type="date" id="range-start" /></div>
+        <div class="range-col"><label>Au</label><input type="date" id="range-end" /></div>
+      </div>
+      <button class="range-submit" id="btn-show-range">Afficher cette période</button>
+    </div>
+
+    <div style="margin-bottom:20px;">
+      <div class="form-label" style="margin-bottom:8px;">📋 Journées disponibles</div>
+      <div id="available-dates" class="chip-row"></div>
+    </div>
+
+    <div id="range-results"></div>
+  </div>
+</div>
+
+<!-- CASHIER LIVE VIEW -->
+<div id="cashier-app" class="hidden">
+  <div style="max-width:480px; margin:0 auto; padding:20px 16px 60px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px;">
+      <div style="display:flex; align-items:center; gap:8px; color:#7FCDBB; font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em;">
+        👁 Suivi en direct
+      </div>
+      <button class="lock-link" id="btn-cashier-logout">🔒 Quitter</button>
+    </div>
+
+    <div id="cashier-sync-status" style="display:flex; align-items:center; gap:6px; margin-bottom:14px; font-size:11px; color:#5C8783;">
+      <span class="dot" style="background:#5C8783;"></span> Connexion…
+    </div>
+
+    <div style="display:flex; gap:10px; align-items:center; margin-bottom:16px;">
+      <input type="date" id="cashier-date" style="flex:1; background:#153B3A; border:1px solid #234F4B; border-radius:10px; color:#F5F3EC; padding:10px 12px; font-size:14px;" />
+    </div>
+
+    <div id="cashier-content"></div>
+  </div>
+</div>
+
+<div id="print-area"></div>
+
+<script>
+// ============== STORAGE (localStorage-first, always synchronous, never lost) ==============
+const DB_ENTRIES_PREFIX = "saginn:collecte:";
+const DB_AGENT_NAME = "saginn:agent-name";
+const DB_AUTH_PREFIX = "saginn:auth:";
+const DB_CLIENTS = "saginn:clients";
+
+// ============== BASE DE DONNÉES CLIENTS ==============
+function getClients() {
+  try {
+    const raw = localStorage.getItem(DB_CLIENTS);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) { return []; }
+}
+function saveClients(list) {
+  localStorage.setItem(DB_CLIENTS, JSON.stringify(list));
+}
+function addClient(nom, compte) {
+  const clients = getClients();
+  const exists = clients.some(c => c.nom.toLowerCase() === nom.toLowerCase() && c.compte === compte);
+  if (!exists) {
+    clients.push({ nom: nom.trim(), compte: compte.trim() });
+    clients.sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
+    saveClients(clients);
+  }
+}
+function searchClients(query) {
+  if (!query || query.length < 1) return [];
+  const q = query.toLowerCase().trim();
+  return getClients().filter(c => c.nom.toLowerCase().includes(q)).slice(0, 8);
+}
+
+function todayKey() {
+  const d = new Date();
+  return d.toISOString().slice(0, 10);
+}
+function formatDateFR(dateKey, opts) {
+  const d = new Date(dateKey + "T00:00:00");
+  return d.toLocaleDateString("fr-FR", opts || { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+}
+function formatMontant(n) {
+  return new Intl.NumberFormat("fr-FR").format(n) + " XAF";
+}
+function getAccountType(compte) {
+  const c = String(compte).trim();
+  if (c.startsWith("104")) return { tag: "ÉP", color: "#5FA8E0" };
+  if (c.startsWith("220")) return { tag: "RC", color: "#E0A15F" };
+  return null;
+}
+function addDays(dateKey, n) {
+  const d = new Date(dateKey + "T00:00:00");
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+function startOfMonthKey(dateKey) {
+  const d = new Date(dateKey + "T00:00:00");
+  d.setDate(1);
+  return d.toISOString().slice(0, 10);
+}
+function dateRangeArray(startKey, endKey) {
+  const out = [];
+  let cur = new Date(startKey + "T00:00:00");
+  const end = new Date(endKey + "T00:00:00");
+  while (cur <= end) {
+    out.push(cur.toISOString().slice(0, 10));
+    cur.setDate(cur.getDate() + 1);
+  }
+  return out;
+}
+
+function getEntries(dateKey) {
+  try {
+    const raw = localStorage.getItem(DB_ENTRIES_PREFIX + dateKey);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) { return []; }
+}
+function setEntries(dateKeyArg, entriesArg) {
+  // Synchronous local write — completes instantly, no network involved.
+  localStorage.setItem(DB_ENTRIES_PREFIX + dateKeyArg, JSON.stringify(entriesArg));
+  if (dateKeyArg === todayKey()) pushLiveData(); // best-effort sync, never blocks the local save above
+}
+function listSavedDates() {
+  const dates = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith(DB_ENTRIES_PREFIX)) {
+      const d = k.slice(DB_ENTRIES_PREFIX.length);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(d) && getEntries(d).length > 0) dates.push(d);
+    }
+  }
+  return d
