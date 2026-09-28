@@ -106,21 +106,6 @@
   }
 
   .offline-banner { position: fixed; top: 0; left: 0; right: 0; background: #E8C27A; color: #3A2E1A; text-align: center; font-size: 12px; font-weight: 700; padding: 6px; z-index: 50; }
-
-  /* ---- Autocomplétion ---- */
-  .autocomplete-wrap { position: relative; flex: 1; }
-  .autocomplete-list { position: absolute; top: 100%; left: -38px; right: 0; background: #1D4A47; border: 1px solid #4FB89E; border-radius: 10px; z-index: 100; max-height: 200px; overflow-y: auto; margin-top: 4px; box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
-  .autocomplete-item { padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #234F4B; }
-  .autocomplete-item:last-child { border-bottom: none; }
-  .autocomplete-item:hover, .autocomplete-item.active { background: #234F4B; }
-  .autocomplete-item .ac-nom { font-size: 14px; font-weight: 700; color: #F5F3EC; }
-  .autocomplete-item .ac-compte { font-size: 11px; color: #7FCDBB; margin-top: 1px; }
-
-  /* ---- Gestion clients ---- */
-  .client-item { display: flex; align-items: center; justify-content: space-between; background: #0F2A2E; border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
-  .client-item-info .ci-nom { font-size: 14px; font-weight: 700; }
-  .client-item-info .ci-compte { font-size: 11px; color: #7FCDBB; margin-top: 2px; }
-  .client-del-btn { background: none; border: none; cursor: pointer; color: #8A6A6A; font-size: 16px; padding: 4px; }
 </style>
 </head>
 <body>
@@ -164,7 +149,6 @@
   <div class="tabs">
     <button class="tab-btn active" id="tab-jour-btn">📅 Aujourd'hui</button>
     <button class="tab-btn inactive" id="tab-hist-btn">🕘 Historique</button>
-    <button class="tab-btn inactive" id="tab-clients-btn">👥 Clients</button>
   </div>
 
   <!-- TAB: JOUR -->
@@ -190,35 +174,13 @@
 
     <div class="form-card">
       <div class="form-label">Nouveau client</div>
-      <div class="field">
-        <span class="icn">👤</span>
-        <div class="autocomplete-wrap">
-          <input id="input-nom" placeholder="Nom du client" autocomplete="off" style="width:100%; background:transparent; border:none; color:#F5F3EC; font-size:15px;" />
-          <div id="autocomplete-list" class="autocomplete-list" style="display:none;"></div>
-        </div>
-      </div>
+      <div class="field"><span class="icn">👤</span><input id="input-nom" placeholder="Nom du client" /></div>
       <div class="field"><span class="icn">💳</span><input id="input-compte" placeholder="Numéro de compte" /></div>
       <div class="field"><span class="icn">💵</span><input id="input-montant" placeholder="Montant (XAF)" inputmode="numeric" /></div>
       <button class="add-btn" id="btn-add">+ Ajouter à la fiche</button>
     </div>
 
     <div id="today-table-section"></div>
-  </div>
-
-  <!-- TAB: CLIENTS -->
-  <div id="tab-clients" class="hidden">
-    <div class="hist-title">Mes clients</div>
-    <div class="hist-sub">Enregistre tes clients pour une saisie rapide sur le terrain.</div>
-
-    <div class="form-card">
-      <div class="form-label">Ajouter un client</div>
-      <div class="field"><span class="icn">👤</span><input id="new-client-nom" placeholder="Nom complet du client" /></div>
-      <div class="field"><span class="icn">💳</span><input id="new-client-compte" placeholder="Numéro de compte" /></div>
-      <button class="add-btn" id="btn-add-client">+ Enregistrer ce client</button>
-    </div>
-
-    <div class="form-label" style="margin-bottom:10px;">Liste des clients enregistrés</div>
-    <div id="clients-list"></div>
   </div>
 
   <!-- TAB: HISTORIQUE -->
@@ -279,32 +241,6 @@
 const DB_ENTRIES_PREFIX = "saginn:collecte:";
 const DB_AGENT_NAME = "saginn:agent-name";
 const DB_AUTH_PREFIX = "saginn:auth:";
-const DB_CLIENTS = "saginn:clients";
-
-// ============== BASE DE DONNÉES CLIENTS ==============
-function getClients() {
-  try {
-    const raw = localStorage.getItem(DB_CLIENTS);
-    return raw ? JSON.parse(raw) : [];
-  } catch (e) { return []; }
-}
-function saveClients(list) {
-  localStorage.setItem(DB_CLIENTS, JSON.stringify(list));
-}
-function addClient(nom, compte) {
-  const clients = getClients();
-  const exists = clients.some(c => c.nom.toLowerCase() === nom.toLowerCase() && c.compte === compte);
-  if (!exists) {
-    clients.push({ nom: nom.trim(), compte: compte.trim() });
-    clients.sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
-    saveClients(clients);
-  }
-}
-function searchClients(query) {
-  if (!query || query.length < 1) return [];
-  const q = query.toLowerCase().trim();
-  return getClients().filter(c => c.nom.toLowerCase().includes(q)).slice(0, 8);
-}
 
 function todayKey() {
   const d = new Date();
@@ -364,4 +300,90 @@ function listSavedDates() {
       if (/^\d{4}-\d{2}-\d{2}$/.test(d) && getEntries(d).length > 0) dates.push(d);
     }
   }
-  return d
+  return dates.sort().reverse();
+}
+
+// ============== FIREBASE (synchronisation temps réel agent → caissière) ==============
+// Remplace ces valeurs par celles de TON projet Firebase (Console Firebase > Paramètres du projet > Vos applications > Config SDK)
+const firebaseConfig = {
+  apiKey: "AIzaSyCd9O1nQQZKgictAM0xvmd7x35oikXTDyY",
+  authDomain: "saginn.firebaseapp.com",
+  databaseURL: "https://saginn-default-rtdb.firebaseio.com",
+  projectId: "saginn",
+  storageBucket: "saginn.firebasestorage.app",
+  messagingSenderId: "555277492927",
+  appId: "1:555277492927:web:f9de1f9d5769d9911f9c0a"
+};
+
+let fbReady = false;
+let fbDb = null;
+
+function initFirebase() {
+  if (firebaseConfig.apiKey === "REMPLACE_MOI") {
+    console.warn("Firebase non configuré — la synchronisation en direct est désactivée. L'envoi WhatsApp manuel reste disponible.");
+    return;
+  }
+  try {
+    firebase.initializeApp(firebaseConfig);
+    firebase.auth().signInAnonymously().then(() => {
+      fbDb = firebase.database();
+      fbReady = true;
+    }).catch((e) => {
+      console.warn("Connexion Firebase impossible :", e.message);
+    });
+  } catch (e) {
+    console.warn("Erreur d'initialisation Firebase :", e.message);
+  }
+}
+initFirebase();
+
+function pushLiveData() {
+  if (!fbReady || !fbDb) return;
+  fbDb.ref("live/" + dateKey).set({ entries, agentName, updatedAt: Date.now() }).catch(() => {});
+}
+
+// ============== STATE ==============
+const dateKey = todayKey();
+let entries = getEntries(dateKey);
+let agentName = localStorage.getItem(DB_AGENT_NAME) || "";
+let role = null;
+let rangeData = null;
+let editingId = null;
+
+// ============== AUTH ==============
+const authChoose = document.getElementById("auth-choose");
+const authPw = document.getElementById("auth-pw");
+const authPwTitle = document.getElementById("auth-pw-title");
+const pwInput = document.getElementById("pw-input");
+const pwInput2 = document.getElementById("pw-input2");
+const authError = document.getElementById("auth-error");
+const pwSubmitBtn = document.getElementById("pw-submit-btn");
+let authMode = "login"; // 'login' | 'setup'
+
+function showAuthChoose() {
+  authChoose.classList.remove("hidden");
+  authPw.classList.add("hidden");
+  authError.classList.add("hidden");
+  pwInput.value = ""; pwInput2.value = "";
+}
+
+function chooseRole(r) {
+  role = r;
+  const saved = localStorage.getItem(DB_AUTH_PREFIX + r);
+  authMode = saved ? "login" : "setup";
+  authChoose.classList.add("hidden");
+  authPw.classList.remove("hidden");
+  authError.classList.add("hidden");
+  authPwTitle.textContent = (r === "agent" ? "Espace agent" : "Espace caissière") + (authMode === "setup" ? " — créer un mot de passe" : "");
+  pwInput2.classList.toggle("hidden", authMode !== "setup");
+  pwSubmitBtn.textContent = authMode === "setup" ? "Créer et entrer" : "Déverrouiller";
+  pwInput.value = ""; pwInput2.value = "";
+  pwInput.focus();
+}
+
+function submitAuth() {
+  authError.classList.add("hidden");
+  if (authMode === "setup") {
+    if (pwInput.value.length < 4) { showAuthError("4 caractères minimum."); return; }
+    if (pwInput.value !== pwInput2.value) { showAuthError("Les deux mots de passe ne correspondent pas."); return; }
+    localStorage.setItem(DB_AUTH_PREFIX + role, pwInpu
